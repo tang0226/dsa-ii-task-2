@@ -1,12 +1,6 @@
 import csv
+from locations import Location, locations
 
-class Location:
-  def __init__(self, name, address, city, state, zip_code):
-    self.name = name
-    self.address = address
-    self.city = city
-    self.state = state
-    self.zip_code = zip_code
 
 class Package:
   def __init__(self, package_id, address, city, state, zip_code, deadline, weight, note):
