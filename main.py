@@ -422,7 +422,7 @@ batch2 = [lookup_package(pid) for pid in [
 
 batch3 = [lookup_package(pid) for pid in [
   '9', # delayed package with wrong address
-  '26', '27', '28', '32', '33', '35',
+  '26', '27', '28', '32', '33', '35', '39'
 ]]
 
 trucks = [Truck(str(i)) for i in range(1, 4)]
@@ -454,6 +454,18 @@ trucks[2].set_driver(repeat_driver)
 for p in batch3: trucks[2].load(p)
 trucks[2].route(return_to_wgu=False)
 
+delivered_pkg_ct = 0
+for p in packages.values():
+  if p.status == 'delivered':
+    delivered_pkg_ct += 1
+
+ending_time = max([tr.current_time for tr in trucks])
+
+total_mileage = sum([tr.get_mileage_at_time(tr.current_time) for tr in trucks])
+
+print(f'Packages delivered: {delivered_pkg_ct}')
+print(f'Ending time: {datetime.strftime(ending_time, '%I:%M:%S %p')}')
+print(f'Total mileage: {round(total_mileage, 2)}')
 
 # CLI
 
@@ -461,9 +473,9 @@ def display_help_msg():
   print("""Available commands: status, quit, help
 
 status:
-  displays the status of one or more trucks or packages at a specific (military) time (or end-of-day, if no time is provided)
-  truck status includes driver, current / en-route locations, packages, mileage (total mileage shown if multiple trucks are selected)
-  package status includes delivery status, truck (if applicable)
+  displays the status of one or more trucks or packages at a specific time, or end-of-day, if no time is provided)
+  IDs must be separated by commas without spaces
+  Use the "all" selector to select all trucks or packages
 
   Usage:
     status (truck | package) (<id>[,<id2>,...] | all) [<time>]
@@ -487,6 +499,7 @@ def parse_ids(s):
     return 'Error: missing ID after comma. Make sure no commas are followed by spaces'
   return ids
 
+print('\n')
 display_help_msg()
 
 while True:
