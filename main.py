@@ -388,18 +388,22 @@ with open('packages.csv') as csvfile:
     package = Package(*line)
     packages.insert(package.package_id, package)
 
+# LOOKUP FUNCTION
+def lookup_package(pid: str):
+  return packages.get(pid)
+
 # special packages
-packages.get('6').set_arrival('9:05 AM')
-packages.get('9').set_address('410 S State St')
-packages.get('9').set_city('Salt Lake City')
-packages.get('9').set_zip_code('84111')
-packages.get('9').set_arrival('10:20 AM')
-packages.get('25').set_arrival('9:05 AM')
-packages.get('28').set_arrival('9:05 AM')
-packages.get('32').set_arrival('9:05 AM')
+lookup_package('6').set_arrival('9:05 AM')
+lookup_package('9').set_address('410 S State St')
+lookup_package('9').set_city('Salt Lake City')
+lookup_package('9').set_zip_code('84111')
+lookup_package('9').set_arrival('10:20 AM')
+lookup_package('25').set_arrival('9:05 AM')
+lookup_package('28').set_arrival('9:05 AM')
+lookup_package('32').set_arrival('9:05 AM')
 
 # truck 1 will prioritize deadlined packages that aren't delayed
-batch1 = [packages.get(pid) for pid in [
+batch1 = [lookup_package(pid) for pid in [
   # deadlined packages
   '1', '13', '15', '29', '30', '31', '34', '37', '40',
   # other packages
@@ -407,7 +411,7 @@ batch1 = [packages.get(pid) for pid in [
 ]]
 
 # truck 2 will leave as soon as the delayed packages arrive
-batch2 = [packages.get(pid) for pid in [
+batch2 = [lookup_package(pid) for pid in [
   # delayed, deadlined packages
   '6', '25',
   '14', '16', '20',  # <- must be delivered together
@@ -416,7 +420,7 @@ batch2 = [packages.get(pid) for pid in [
   '12', '17', '19', '21', '22', '23', '24'
 ]]
 
-batch3 = [packages.get(pid) for pid in [
+batch3 = [lookup_package(pid) for pid in [
   '9', # delayed package with wrong address
   '26', '27', '28', '32', '33', '35',
 ]]
@@ -567,7 +571,7 @@ while True:
       else:
         invalid = False
         for pid in ids:
-          p = packages.get(pid)
+          p = lookup_package(pid)
           if p == None:
             print(f'Invalid package ID: "{pid}"')
             invalid = True
