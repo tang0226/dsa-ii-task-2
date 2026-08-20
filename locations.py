@@ -45,6 +45,9 @@ location_data = [
 
 locations = [Location(i, *location_data[i]) for i in range(len(location_data))]
 
+
+# utility hash tables and lookup functions
+
 address_to_location = HashTable()
 for l in locations:
   address_to_location.insert(l.address, l)
@@ -58,3 +61,16 @@ for l in locations:
 
 def get_location_by_name(name):
   return name_to_location.get(name)
+
+
+# build distance table, organized by each location's index
+distance_table = [[0] * len(locations) for i in range(len(locations))]
+with open('distances.txt') as fp:
+  line = fp.readline().strip()
+  i = 0
+  while line:
+    strs = line.split(',')
+    for j in range(len(strs)):
+      distance_table[i][j] = distance_table[j][i] = float(strs[j])
+    i += 1
+    line = fp.readline().strip()

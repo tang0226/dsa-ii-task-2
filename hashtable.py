@@ -51,7 +51,8 @@ class HashTable:
       self.keys_list.append(key)
     self.table[b] = (key, val)
     
-
+  # finds the index of a filled bucket containing the provided key;
+  # used for element retrieval and deletion
   def get_filled_bucket(self, key):
     h = b = self.get_hash(key)
     curr = self.table[h]
@@ -92,9 +93,11 @@ class HashTable:
     for p in pairs:
       self.insert(p[0], p[1])
 
+  # return list of keys
   def keys(self):
     return self.keys_list
 
+  # return list of values
   def values(self):
     return [self.get(key) for key in self.keys_list]
   
