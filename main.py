@@ -243,26 +243,14 @@ class Truck(TimedEntity):
     if return_to_wgu:
       self.drive_to_name('Western Governors University')
 
-  def print_status_at_time(self, t: datetime):
+  def get_first_history_i_after_time(self, t: datetime):
     last_i = 0
     while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
+    return last_i
 
-    if last_i == 0:
-      print(f'Driver: none')
-      print(f'Location: {str(get_location_by_name('Western Governors University'))}')
-      print(f'Mileage: 0 miles')
-      print(f'Packages: none')
-      return
+  def get_location_at_time(self, t: datetime):
+    last_i = self.get_first_history_i_after_time(t)
 
-    # driver
-    driver = None
-    for i in range(last_i - 1, -1, -1):
-      if self.history[i]['type'] == 'set_driver':
-        driver = self.history[i]['data']
-        break
-      if self.history[i]['type'] == 'remove_driver':
-        break
-    
     # location
     prev_location = None
     prev_arrival = None
@@ -289,12 +277,71 @@ class Truck(TimedEntity):
         segment_miles = self.history[i]['data']['miles']
         break
 
-    # mileage
+    return {
+      'prev_location': prev_location,
+      'prev_arrival': prev_arrival,
+      'prev_mileage': prev_mileage,
+      'next_location': next_location,
+      'next_arrival': next_arrival,
+      'segment_miles': segment_miles,
+    }
+
+  def get_mileage_at_time(self, t: datetime):
+    last_i = self.get_first_history_i_after_time(t)
+    if last_i == 0: return 0
+
+    loc_data = self.get_location_at_time(t)
+
+    prev_location = loc_data['prev_location']
+    prev_mileage = loc_data['prev_mileage']
+    prev_arrival = loc_data['prev_arrival']
+
+    next_location = loc_data['next_location']
+    next_arrival = loc_data['next_arrival']
+    segment_miles = loc_data['segment_miles']
+
     mileage = None
     if next_location == None:
       mileage = prev_mileage
     else:
       mileage = prev_mileage + segment_miles * ((t - prev_arrival) / (next_arrival - prev_arrival))
+
+    return mileage
+
+
+  def print_status_at_time(self, t: datetime):
+    last_i = self.get_first_history_i_after_time(t)
+
+    if last_i == 0:
+      print(f'Driver: none')
+      print(f'Location: {str(get_location_by_name('Western Governors University'))}')
+      print(f'Mileage: 0 miles')
+      print(f'Packages: none')
+      return
+
+    # driver
+    driver = None
+    for i in range(last_i - 1, -1, -1):
+      if self.history[i]['type'] == 'set_driver':
+        driver = self.history[i]['data']
+        break
+      if self.history[i]['type'] == 'remove_driver':
+        break
+
+    # location
+    loc_data = self.get_location_at_time(t)
+
+    prev_location = loc_data['prev_location']
+    prev_mileage = loc_data['prev_mileage']
+    prev_arrival = loc_data['prev_arrival']
+
+    next_location = loc_data['next_location']
+    next_arrival = loc_data['next_arrival']
+    segment_miles = loc_data['segment_miles']
+
+
+    # mileage
+    mileage = self.get_mileage_at_time(t)
 
     # calculate packages
     ps = []
@@ -306,11 +353,14 @@ class Truck(TimedEntity):
         ps.remove(h['data'])
 
     print(f'Driver: {driver or 'none'}')
+
     loc_text = str(prev_location)
     if next_location and t != prev_arrival:
       loc_text = 'en route\n          ' + loc_text + '\n          v\n          ' + str(next_location)
     print(f'Location: {loc_text}')
+
     print(f'Mileage: {round(mileage, 2)}')
+
     pkg_str = 'none'
     if ps: pkg_str = f'[{', '.join([p.package_id for p in ps])}]'
     print(f'Packages: {pkg_str}')
@@ -404,11 +454,11 @@ trucks[2].route(return_to_wgu=False)
 # CLI
 
 def display_help_msg():
-  print("""Available commands: status, history, quit, help
+  print("""Available commands: status, quit, help
 
 status:
   displays the status of one or more trucks or packages at a specific (military) time (or end-of-day, if no time is provided)
-  truck status includes driver, current / en-route locations, packages, mileage
+  truck status includes driver, current / en-route locations, packages, mileage (total mileage shown if multiple trucks are selected)
   package status includes delivery status, truck (if applicable)
 
   Usage:
@@ -416,21 +466,10 @@ status:
   
   Examples:
     status truck 1
+    status truck all
     status truck all 10:15
     status package 1,3,5 10:02:30
     status package all 9:45:45
-
-history:
-  displays the history of one or more trucks or packages
-
-  Usage:
-    history (truck | package) (<id>[,<id2>,...] | all)
-  
-  Examples:
-    history truck 1
-    history truck all
-    history package 2,3,38
-    history package all
 
 help: displays this help message
 
@@ -506,12 +545,21 @@ while True:
             print(f'{truck}:')
           truck.print_status_at_time(t)
           print()
+
+        if len(selected) > 1:
+          total_mileage = sum(tr.get_mileage_at_time(t) for tr in selected)
+          print(f'Total mileage: {round(total_mileage, 2)} miles')
       else:
         for truck in selected:
           if len(selected) > 1:
             print(f'{truck}:')
           truck.print_current_status()
           print()
+
+        if len(selected) > 1:
+          total_mileage = sum(tr.get_mileage_at_time(tr.current_time) for tr in selected)
+          print(f'Total mileage: {round(total_mileage, 2)} miles')
+
     else: # 'package'
       selected = []
       if ids == 'all':
