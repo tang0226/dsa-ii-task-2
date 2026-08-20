@@ -256,16 +256,12 @@ while True:
       if t:
         for p in selected:
           if len(selected) > 1:
-            print(f'Package {p.package_id}:')
-          p.print_status_at_time(t)
-          print()
+            print(f'Package {p.package_id}: {p.get_status_at_time_str(t)}')
       # no timestamp specified: show end-of-day status
       else:
         for p in selected:
           if len(selected) > 1:
-            print(f'Package {p.package_id}:')
-          p.print_current_status()
-          print()
+            print(f'Package {p.package_id}: {p.get_current_status_str()}')
 
   elif command == 'help':
     display_help_msg()

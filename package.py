@@ -77,7 +77,7 @@ class Package(TimedEntity):
     }[status] + time.strftime(timestamp.time(), '%H:%M:%S %p')
 
   # searches the package's history to determine its status at the specified time
-  def print_status_at_time(self, t: datetime):
+  def get_status_at_time_str(self, t: datetime):
     # locate the point in the history at which the specified time falls
     last_i = 0
     while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
@@ -98,17 +98,7 @@ class Package(TimedEntity):
       if self.arrival:
         status_str = self.get_status_str('delayed', self.arrival)
 
-    # determine what truck the package is on
-    truck = ''
-    for h in hs:
-      if h['type'] == 'delivered':
-        break
-      if h['type'] == 'loaded':
-        truck = h['data']
+    return status_str
 
-    print(f'Destination: {get_location_by_address(self.address)}')
-    print(f'Status: {status_str}')
-    print(f'Truck: {truck or 'none'}')
-
-  def print_current_status(self):
-    self.print_status_at_time(self.current_time)
+  def get_current_status_str(self):
+    return self.get_status_at_time_str(self.current_time)
