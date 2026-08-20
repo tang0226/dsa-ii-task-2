@@ -9,11 +9,13 @@ TODAY = date.today()
 def parse_time_str(time_str: str):
   return datetime.strptime(time_str, '%I:%M %p').time()
 
+# Turn a time object into a datetime object by adding the current date
+# (arithmetic operators work on datetime but not on time objects)
 def add_today(t: time):
   return datetime.combine(TODAY, t)
 
 
-# build distance table
+# build distance table, organized by index of location from locations.py
 distance_table = [[0] * len(locations) for i in range(len(locations))]
 
 with open('distances.txt') as fp:
@@ -27,7 +29,8 @@ with open('distances.txt') as fp:
     line = fp.readline().strip()
 
 
-# Parent class for trucks and packages; both will have histories
+
+# Parent class for trucks and packages; both will have histories with timing information
 class TimedEntity:
   def __init__(self, initial_time = time(0, 0, 0)):
     self.current_time = add_today(initial_time)
@@ -45,6 +48,8 @@ class TimedEntity:
     self.current_time = t
 
 
+
+# Main Package class; instances will be stored in buckets inside of a HashTable
 class Package(TimedEntity):
   def __init__(
     self,
@@ -62,15 +67,21 @@ class Package(TimedEntity):
     self.city = city
     self.state = state
     self.zip_code = zip_code
+    # default to an EOD deadline unless otherwise specified
     self.deadline = 'EOD'
     if deadline != 'EOD':
       self.set_deadline(deadline)
-    self.arrival = None
     self.weight = int(weight)
     self.note = note
+
+    # the package starts at the hub unless it has been delayed
+    # (the note provides a quick-and-dirty way to check)
     self.status = 'at hub'
     if 'Delayed' in note:
       self.status = 'delayed'
+
+    # the arrival property can be set via function later
+    self.arrival = None
     
     super().__init__()
 
@@ -100,6 +111,7 @@ class Package(TimedEntity):
     self.add_event('arrived')
     self.status = 'at hub'
 
+  # utility that combines a status with a timestamp in a user-readable format
   def get_status_str(self, status: str, timestamp: datetime):
     return {
       'delayed': 'delayed until ',
@@ -109,13 +121,16 @@ class Package(TimedEntity):
       'delivered': 'delivered at ',
     }[status] + time.strftime(timestamp.time(), '%H:%M:%S %p')
 
+  # searches the package's history to determine its status at the specified time
   def print_status_at_time(self, t: datetime):
+    # locate the point in the history at which the specified time falls
     last_i = 0
     while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
 
+    # Create an array that works backwards from last_i
+    # for easy back-tracing through the package history
     hs = (last_i and self.history[last_i-1::-1]) or []
 
-    status_timestamp = None
     status_str = ''
     for h in hs:
       if h['type'] in ('arrived', 'loaded', 'en route', 'delivered'):
@@ -123,17 +138,19 @@ class Package(TimedEntity):
         break
 
     if not status_str:  # i.e., no history of arrival, loading, traveling, or delivery
-      # either the pkg is at the hub w/o delay, or it's delayed and hasn't arrived yet
+      # either the pkg is at the hub without delay, or it was delayed and hasn't arrived yet
       status_str = 'at hub'
       if self.arrival:
         status_str = self.get_status_str('delayed', self.arrival)
 
+    # determine what truck the package is on
     truck = ''
     for h in hs:
       if h['type'] == 'delivered':
         break
       if h['type'] == 'loaded':
         truck = h['data']
+
     print(f'Destination: {get_location_by_address(self.address)}')
     print(f'Status: {status_str}')
     print(f'Truck: {truck or 'none'}')
@@ -141,6 +158,9 @@ class Package(TimedEntity):
   def print_current_status(self):
     self.print_status_at_time(self.current_time)
 
+
+# The Truck class contains routing logic and history management
+# for location and package loading/unloading/delivery
 class Truck(TimedEntity):
   def __init__(self, truck_id):
     self.truck_id = truck_id
@@ -167,24 +187,30 @@ class Truck(TimedEntity):
     self.driver = None
 
   def load(self, package: Package):
+    # ensure the package is available to load and the truck is not already full
     if package.arrival and package.arrival > self.current_time:
       raise ValueError(f'Cannot load Package {package.package_id} into {self}: Package has not arrived yet')
     if len(self.packages) >= 16:
       raise ValueError(f'Cannot load Package {package.package_id} into {self}: Truck is full')
-    
+
+    # load package into self
     self.packages.append(package)
     self.add_event('load', package)
 
+    # add a loading event to the package's history
     package.wait_until(self.current_time)
     package.add_event('loaded', self)
 
   def unload(self, package: Package):
+    # display a message if the package is late
     if isinstance(package.deadline, datetime) and self.current_time > package.deadline:
       print(f'ERROR: Package {package.package_id} was unloaded late')
 
+    # unload package from self
     self.packages.remove(package)
     self.add_event('unload', package)
 
+    # add an unloaded/delivered event to the package's history and update its status
     package.wait_until(self.current_time)
     package.add_event('delivered', self)
     package.status = 'delivered'
@@ -193,6 +219,7 @@ class Truck(TimedEntity):
     miles = distance_table[self.location.location_id][new_loc.location_id]
     self.location = new_loc
     self.mileage += miles
+    # calculate how long it takes the 18 mph truck to travel this distance
     self.wait(timedelta(minutes=miles/(18/60)))
     self.add_event('drive', {'location': new_loc, 'miles': miles, 'mileage': self.mileage})
 
@@ -202,7 +229,9 @@ class Truck(TimedEntity):
   def drive_to_name(self, name: str):
       self.drive_to(get_location_by_name(name))
 
+  # Route and deliver the truck's current load of packages
   def route(self, return_to_wgu = True):
+    # set status of all packages to 'en route'
     for p in self.packages:
       p.add_event('en route', self)
       p.status = 'en route'
@@ -243,6 +272,9 @@ class Truck(TimedEntity):
     if return_to_wgu:
       self.drive_to_name('Western Governors University')
 
+  # returns the position in the history array where
+  #   timestamps first surpass the specified time
+  # Used to assist finding the truck's status at a specific time
   def get_first_history_i_after_time(self, t: datetime):
     last_i = 0
     while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
@@ -304,10 +336,10 @@ class Truck(TimedEntity):
     if next_location == None:
       mileage = prev_mileage
     else:
+      # estimate mileage at this exact moment by interpolating between the two locations
       mileage = prev_mileage + segment_miles * ((t - prev_arrival) / (next_arrival - prev_arrival))
 
     return mileage
-
 
   def print_status_at_time(self, t: datetime):
     last_i = self.get_first_history_i_after_time(t)
@@ -368,7 +400,7 @@ class Truck(TimedEntity):
   def print_current_status(self):
     self.print_status_at_time(self.current_time)
 
-
+# Driver class
 class Driver:
   def __init__(self, name):
     self.name = name
@@ -380,6 +412,7 @@ class Driver:
     return self.name
 
 
+# Initialize the packages hash table and populate it from the CSV file
 packages = HashTable()
 with open('packages.csv') as csvfile:
   reader = csv.reader(csvfile)
@@ -392,6 +425,7 @@ with open('packages.csv') as csvfile:
 def lookup_package(pid: str):
   return packages.get(pid)
 
+
 # special packages
 lookup_package('6').set_arrival('9:05 AM')
 lookup_package('9').set_address('410 S State St')
@@ -401,6 +435,7 @@ lookup_package('9').set_arrival('10:20 AM')
 lookup_package('25').set_arrival('9:05 AM')
 lookup_package('28').set_arrival('9:05 AM')
 lookup_package('32').set_arrival('9:05 AM')
+
 
 # truck 1 will prioritize deadlined packages that aren't delayed
 batch1 = [lookup_package(pid) for pid in [
@@ -414,6 +449,7 @@ batch1 = [lookup_package(pid) for pid in [
 batch2 = [lookup_package(pid) for pid in [
   # delayed, deadlined packages
   '6', '25',
+  # deadlined packages
   '14', '16', '20',  # <- must be delivered together
   # other packages
   '3', '18', '36', '38',  # <- must be on truck 2
@@ -425,6 +461,7 @@ batch3 = [lookup_package(pid) for pid in [
   '26', '27', '28', '32', '33', '35', '39'
 ]]
 
+# initialize Truck objects (1-3)
 trucks = [Truck(str(i)) for i in range(1, 4)]
 
 driver1 = Driver('Alice')
@@ -433,36 +470,43 @@ driver2 = Driver('Bob')
 trucks[0].set_driver(driver1)
 trucks[1].set_driver(driver2)
 
+# load the first two trucks
 for p in batch1: trucks[0].load(p)
 
 trucks[1].wait_until(add_today(parse_time_str('9:05 AM')))
 for p in batch2: trucks[1].load(p)
 
+# dispatch the first two trucks
 trucks[0].route()
 trucks[1].route()
 
+
+# determine which truck arrives back first,
+# and thus which driver will drive the third truck
 truck_to_vacate = None
 if trucks[0].current_time < trucks[1].current_time: truck_to_vacate = trucks[0]
 else: truck_to_vacate = trucks[1]
 
 trucks[2].wait_until(truck_to_vacate.current_time)
 
+# move the driver to Truck 3
 repeat_driver = truck_to_vacate.driver
 truck_to_vacate.remove_driver()
 trucks[2].set_driver(repeat_driver)
 
+# load and dispatch Truck 3
 for p in batch3: trucks[2].load(p)
 trucks[2].route(return_to_wgu=False)
 
+# calculate final statistics
 delivered_pkg_ct = 0
 for p in packages.values():
   if p.status == 'delivered':
     delivered_pkg_ct += 1
-
 ending_time = max([tr.current_time for tr in trucks])
-
 total_mileage = sum([tr.get_mileage_at_time(tr.current_time) for tr in trucks])
 
+# print final statistics
 print(f'Packages delivered: {delivered_pkg_ct}')
 print(f'Ending time: {datetime.strftime(ending_time, '%I:%M:%S %p')}')
 print(f'Total mileage: {round(total_mileage, 2)}')
@@ -492,6 +536,7 @@ help: displays this help message
 quit: exits the program
 """)
 
+# parses a comma-separated ID-list parameter in the CLI
 def parse_ids(s):
   if s == 'all': return s
   ids = s.split(',')
@@ -503,10 +548,12 @@ print('\n')
 display_help_msg()
 
 while True:
+  # input a command and organize its tokens
   full_command = input('> ')
   tokens = list(filter(lambda x: len(x) > 0, full_command.split(' ')))
   command = tokens[0]
   params = tokens[1:]
+
   if command == 'status':
     if len(params) == 0:
       print('Specify "truck" or "package"')
@@ -518,30 +565,37 @@ while True:
       continue
 
     ids = None
-    if len(params) == 1:
+    if len(params) == 1: # i.e. the specifier was the only param and no IDs were provided
       print(f'IDs must be selected after specifier "{specifier}". Add IDs separated by commas without spaces, or add "all" to select all')
       continue
     ids = parse_ids(params[1])
-    if isinstance(ids, str) and ids != 'all':
+    if isinstance(ids, str) and ids != 'all': # parse_ids returns a string message if it fails
+      # print the returned error message
       print(ids)
       continue
 
     t = None
     if len(params) >= 3:
+      # test multiple different formats on the user's input
       for fmt in ['%H:%M', '%H:%M:%S', '%I:%M%P', '%I:%M:%S%P']:
         try:
           t = add_today(time.strptime(params[2], fmt))
           break
         except ValueError:
           pass
+      # display an error if the time input matched no valid formats
       if t == None:
         print(f'Invalid time string "{params[2]}". Please enter a valid time without spaces.')
         continue
+
+      # display an error if the user inserted a space between the time and the "am" or "pm".
+      # The time should constitute one token, no spaces
       if len(params) >= 4 and params[3].lower() in ('am', 'pm'):
         print(f'Invalid time string "{params[2]} {params[3]}". Please enter a valid time without spaces.')
         continue
 
     if specifier == 'truck':
+      # build an array of trucks selected by the user
       selected = []
       if ids == 'all':
         selected = trucks
@@ -556,6 +610,8 @@ while True:
             invalid = True
             break
         if invalid: continue
+
+      # timestamp specified
       if t:
         for truck in selected:
           if len(selected) > 1:
@@ -563,9 +619,12 @@ while True:
           truck.print_status_at_time(t)
           print()
 
+        # print total mileage of selection after displaying truck status
         if len(selected) > 1:
           total_mileage = sum(tr.get_mileage_at_time(t) for tr in selected)
           print(f'Total mileage: {round(total_mileage, 2)} miles')
+
+      # no timestamp specified: show end-of-day status
       else:
         for truck in selected:
           if len(selected) > 1:
@@ -573,15 +632,19 @@ while True:
           truck.print_current_status()
           print()
 
+        # print total mileage of selection after displaying truck status
         if len(selected) > 1:
           total_mileage = sum(tr.get_mileage_at_time(tr.current_time) for tr in selected)
           print(f'Total mileage: {round(total_mileage, 2)} miles')
 
-    else: # 'package'
+    else: # specifier is 'package'
+      # build list of packages chosen by the user
       selected = []
       if ids == 'all':
+        # the packages hash table entries are not sorted by default
         selected = sorted(packages.values(), key=lambda p: int(p.package_id))
       else:
+        # the user provided comma-separated IDs
         invalid = False
         for pid in ids:
           p = lookup_package(pid)
@@ -592,12 +655,15 @@ while True:
           selected.append(p)
         if invalid:
           continue
+
+      # timestamp specified
       if t:
         for p in selected:
           if len(selected) > 1:
             print(f'Package {p.package_id}:')
           p.print_status_at_time(t)
           print()
+      # no timestamp specified: show end-of-day status
       else:
         for p in selected:
           if len(selected) > 1:
@@ -609,8 +675,7 @@ while True:
     display_help_msg()
   elif command == 'quit':
     print('Exiting program...')
+    # break out of the UI while-loop
     break
   else:
     print(f'Unknown command "{command}"\nType "help" for available commands')
-
-
