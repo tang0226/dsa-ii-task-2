@@ -34,7 +34,7 @@ class TimedEntity:
     self.history = []
 
   def add_event(self, event_type: str, event_data = None):
-    self.history.append({'time': self.current_time.time(), 'type': event_type, 'data': event_data})
+    self.history.append({'time': self.current_time, 'type': event_type, 'data': event_data})
 
   def wait(self, delta: timedelta):
     self.current_time += delta
@@ -65,7 +65,7 @@ class Package(TimedEntity):
     self.deadline = 'EOD'
     if deadline != 'EOD':
       self.set_deadline(deadline)
-    self.arrival = add_today(time(0, 0, 0))
+    self.arrival = None
     self.weight = int(weight)
     self.note = note
     self.status = 'at hub'
@@ -100,6 +100,46 @@ class Package(TimedEntity):
     self.add_event('arrived')
     self.status = 'at hub'
 
+  def get_status_str(self, status: str, timestamp: datetime):
+    return {
+      'delayed': 'delayed until ',
+      'arrived': 'at hub since ',
+      'loaded': 'loaded at ',
+      'en route': 'en route since ',
+      'delivered': 'delivered at ',
+    }[status] + time.strftime(timestamp.time(), '%H:%M:%S %p')
+
+  def print_status_at_time(self, t: datetime):
+    last_i = 0
+    while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
+
+    hs = (last_i and self.history[last_i-1::-1]) or []
+
+    status_timestamp = None
+    status_str = ''
+    for h in hs:
+      if h['type'] in ('arrived', 'loaded', 'en route', 'delivered'):
+        status_str = self.get_status_str(h['type'], h['time'])
+        break
+
+    if not status_str:  # i.e., no history of arrival, loading, traveling, or delivery
+      # either the pkg is at the hub w/o delay, or it's delayed and hasn't arrived yet
+      status_str = 'at hub'
+      if self.arrival:
+        status_str = self.get_status_str('delayed', self.arrival)
+
+    truck = ''
+    for h in hs:
+      if h['type'] == 'delivered':
+        break
+      if h['type'] == 'loaded':
+        truck = h['data']
+    print(f'Destination: {get_location_by_address(self.address)}')
+    print(f'Status: {status_str}')
+    print(f'Truck: {truck or 'none'}')
+
+  def print_current_status(self):
+    self.print_status_at_time(self.current_time)
 
 class Truck(TimedEntity):
   def __init__(self, truck_id):
@@ -127,7 +167,7 @@ class Truck(TimedEntity):
     self.driver = None
 
   def load(self, package: Package):
-    if package.arrival > self.current_time:
+    if package.arrival and package.arrival > self.current_time:
       raise ValueError(f'Cannot load Package {package.package_id} into {self}: Package has not arrived yet')
     if len(self.packages) >= 16:
       raise ValueError(f'Cannot load Package {package.package_id} into {self}: Truck is full')
@@ -146,7 +186,7 @@ class Truck(TimedEntity):
     self.add_event('unload', package)
 
     package.wait_until(self.current_time)
-    package.add_event('unloaded')
+    package.add_event('delivered', self)
     package.status = 'delivered'
 
   def drive_to(self, new_loc: Location):
@@ -162,9 +202,9 @@ class Truck(TimedEntity):
   def drive_to_name(self, name: str):
       self.drive_to(get_location_by_name(name))
 
-  def route(self):
+  def route(self, return_to_wgu = True):
     for p in self.packages:
-      p.add_event('departed', self)
+      p.add_event('en route', self)
       p.status = 'en route'
 
     deadline_pkgs = list(filter(lambda p: p.deadline != 'EOD', self.packages))
@@ -200,8 +240,83 @@ class Truck(TimedEntity):
           deadline_pkg_ct -= 1
     
     # return to WGU for loading
-    self.drive_to_name('Western Governors University')
+    if return_to_wgu:
+      self.drive_to_name('Western Governors University')
+
+  def print_status_at_time(self, t: datetime):
+    last_i = 0
+    while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
+
+    if last_i == 0:
+      print(f'Driver: none')
+      print(f'Location: {str(get_location_by_name('Western Governors University'))}')
+      print(f'Mileage: 0 miles')
+      print(f'Packages: none')
+      return
+
+    # driver
+    driver = None
+    for i in range(last_i - 1, -1, -1):
+      if self.history[i]['type'] == 'set_driver':
+        driver = self.history[i]['data']
+        break
+      if self.history[i]['type'] == 'remove_driver':
+        break
     
+    # location
+    prev_location = None
+    prev_arrival = None
+    prev_mileage = None
+    for i in range(last_i - 1, -1, -1):
+      if self.history[i]['type'] == 'drive':
+        prev_location = self.history[i]['data']['location']
+        prev_arrival = self.history[i]['time']
+        prev_mileage = self.history[i]['data']['mileage']
+        break
+
+    if prev_location == None:
+      prev_location = get_location_by_name('Western Governors University')
+      prev_arrival = self.history[0]['time']
+      prev_mileage = 0
+
+    next_location = None
+    next_arrival = None
+    segment_miles = None
+    for i in range(last_i, len(self.history)):
+      if self.history[i]['type'] == 'drive':
+        next_location = self.history[i]['data']['location']
+        next_arrival = self.history[i]['time']
+        segment_miles = self.history[i]['data']['miles']
+        break
+
+    # mileage
+    mileage = None
+    if next_location == None:
+      mileage = prev_mileage
+    else:
+      mileage = prev_mileage + segment_miles * ((t - prev_arrival) / (next_arrival - prev_arrival))
+
+    # calculate packages
+    ps = []
+    for i in range(last_i):
+      h = self.history[i]
+      if h['type'] == 'load':
+        ps.append(h['data'])
+      elif h['type'] == 'unload':
+        ps.remove(h['data'])
+
+    print(f'Driver: {driver or 'none'}')
+    loc_text = str(prev_location)
+    if next_location and t != prev_arrival:
+      loc_text = 'en route\n          ' + loc_text + '\n          v\n          ' + str(next_location)
+    print(f'Location: {loc_text}')
+    print(f'Mileage: {round(mileage, 2)}')
+    pkg_str = 'none'
+    if ps: pkg_str = f'[{', '.join([p.package_id for p in ps])}]'
+    print(f'Packages: {pkg_str}')
+
+  def print_current_status(self):
+    self.print_status_at_time(self.current_time)
 
 
 class Driver:
@@ -213,6 +328,7 @@ class Driver:
 
   def __str__(self):
     return self.name
+
 
 packages = HashTable()
 with open('packages.csv') as csvfile:
@@ -252,37 +368,184 @@ batch2 = [packages.get(pid) for pid in [
 
 batch3 = [packages.get(pid) for pid in [
   '9', # delayed package with wrong address
-  '26', '27', '28', '32', '33', '35', '39'
+  '26', '27', '28', '32', '33', '35',
 ]]
 
-truck1 = Truck('1')
-truck2 = Truck('2')
-truck3 = Truck('3')
+trucks = [Truck(str(i)) for i in range(1, 4)]
 
 driver1 = Driver('Alice')
 driver2 = Driver('Bob')
 
-truck1.set_driver(driver1)
-truck2.set_driver(driver2)
+trucks[0].set_driver(driver1)
+trucks[1].set_driver(driver2)
 
-for p in batch1: truck1.load(p)
+for p in batch1: trucks[0].load(p)
 
-truck2.wait_until(add_today(parse_time_str('9:05 AM')))
-for p in batch2: truck2.load(p)
+trucks[1].wait_until(add_today(parse_time_str('9:05 AM')))
+for p in batch2: trucks[1].load(p)
 
-truck1.route()
-truck2.route()
+trucks[0].route()
+trucks[1].route()
 
 truck_to_vacate = None
-if truck1.current_time < truck2.current_time: truck_to_vacate = truck1
-else: truck_to_vacate = truck2
+if trucks[0].current_time < trucks[1].current_time: truck_to_vacate = trucks[0]
+else: truck_to_vacate = trucks[1]
 
-truck3.wait_until(truck_to_vacate.current_time)
+trucks[2].wait_until(truck_to_vacate.current_time)
 
 repeat_driver = truck_to_vacate.driver
 truck_to_vacate.remove_driver()
-truck3.set_driver(repeat_driver)
+trucks[2].set_driver(repeat_driver)
 
-for p in batch3: truck3.load(p)
-truck3.route()
+for p in batch3: trucks[2].load(p)
+trucks[2].route(return_to_wgu=False)
+
+
+# CLI
+
+def display_help_msg():
+  print("""Available commands: status, history, quit, help
+
+status:
+  displays the status of one or more trucks or packages at a specific (military) time (or end-of-day, if no time is provided)
+  truck status includes driver, current / en-route locations, packages, mileage
+  package status includes delivery status, truck (if applicable)
+
+  Usage:
+    status (truck | package) (<id>[,<id2>,...] | all) [<time>]
   
+  Examples:
+    status truck 1
+    status truck all 10:15
+    status package 1,3,5 10:02:30
+    status package all 9:45:45
+
+history:
+  displays the history of one or more trucks or packages
+
+  Usage:
+    history (truck | package) (<id>[,<id2>,...] | all)
+  
+  Examples:
+    history truck 1
+    history truck all
+    history package 2,3,38
+    history package all
+
+help: displays this help message
+
+quit: exits the program
+""")
+
+def parse_ids(s):
+  if s == 'all': return s
+  ids = s.split(',')
+  if ids.count(''):
+    return 'Error: missing ID after comma. Make sure no commas are followed by spaces'
+  return ids
+
+display_help_msg()
+
+while True:
+  full_command = input('> ')
+  tokens = list(filter(lambda x: len(x) > 0, full_command.split(' ')))
+  command = tokens[0]
+  params = tokens[1:]
+  if command == 'status':
+    if len(params) == 0:
+      print('Specify "truck" or "package"')
+      continue
+
+    specifier = params[0]
+    if specifier != 'truck' and specifier != 'package':
+      print(f'Specify "truck" or "package" ("{specifier}" is not a valid specifier)')
+      continue
+
+    ids = None
+    if len(params) == 1:
+      print(f'IDs must be selected after specifier "{specifier}". Add IDs separated by commas without spaces, or add "all" to select all')
+      continue
+    ids = parse_ids(params[1])
+    if isinstance(ids, str) and ids != 'all':
+      print(ids)
+      continue
+
+    t = None
+    if len(params) >= 3:
+      for fmt in ['%H:%M', '%H:%M:%S', '%I:%M%P', '%I:%M:%S%P']:
+        try:
+          t = add_today(time.strptime(params[2], fmt))
+          break
+        except ValueError:
+          pass
+      if t == None:
+        print(f'Invalid time string "{params[2]}". Please enter a valid time without spaces.')
+        continue
+      if len(params) >= 4 and params[3].lower() in ('am', 'pm'):
+        print(f'Invalid time string "{params[2]} {params[3]}". Please enter a valid time without spaces.')
+        continue
+
+    if specifier == 'truck':
+      selected = []
+      if ids == 'all':
+        selected = trucks
+      else:
+        invalid = False
+        for tid in ids:
+          if tid == '1':   selected.append(trucks[0])
+          elif tid == '2': selected.append(trucks[1])
+          elif tid == '3': selected.append(trucks[2])
+          else:
+            print(f'Invalid truck ID: "{tid}"')
+            invalid = True
+            break
+        if invalid: continue
+      if t:
+        for truck in selected:
+          if len(selected) > 1:
+            print(f'{truck}:')
+          truck.print_status_at_time(t)
+          print()
+      else:
+        for truck in selected:
+          if len(selected) > 1:
+            print(f'{truck}:')
+          truck.print_current_status()
+          print()
+    else: # 'package'
+      selected = []
+      if ids == 'all':
+        selected = sorted(packages.values(), key=lambda p: int(p.package_id))
+      else:
+        invalid = False
+        for pid in ids:
+          p = packages.get(pid)
+          if p == None:
+            print(f'Invalid package ID: "{pid}"')
+            invalid = True
+            break
+          selected.append(p)
+        if invalid:
+          continue
+      if t:
+        for p in selected:
+          if len(selected) > 1:
+            print(f'Package {p.package_id}:')
+          p.print_status_at_time(t)
+          print()
+      else:
+        for p in selected:
+          if len(selected) > 1:
+            print(f'Package {p.package_id}:')
+          p.print_current_status()
+          print()
+
+  elif command == 'help':
+    display_help_msg()
+  elif command == 'quit':
+    print('Exiting program...')
+    break
+  else:
+    print(f'Unknown command "{command}"\nType "help" for available commands')
+
+
