@@ -15,10 +15,12 @@ def next_prime(n):
 INITIAL_SIZE = 7
 MAX_COLLISIONS = 10
 
+
 class HashTable:
   def __init__(self):
     self.table = [None] * INITIAL_SIZE
     self.keys_list = []
+
 
   # custom hashing function for ints and strings only
   def get_hash(self, key):
@@ -32,6 +34,7 @@ class HashTable:
         return n
     else:
       raise TypeError(f'HashTable key "{key}" is not an integer or string')
+
 
   def insert(self, key, val):
     h = b = self.get_hash(key)
@@ -50,7 +53,8 @@ class HashTable:
     if curr == None or curr[0] != key:
       self.keys_list.append(key)
     self.table[b] = (key, val)
-    
+
+
   # finds the index of a filled bucket containing the provided key;
   # used for element retrieval and deletion
   def get_filled_bucket(self, key):
@@ -74,16 +78,19 @@ class HashTable:
       raise LookupError(f'Error getting key "{key}" from HashTable')
     return b
 
+
   def delete(self, key):
     b = self.get_filled_bucket(key)
     if b == None: return False
     self.table[b] = 'removed'
     self.keys_list.remove(key)
 
+
   def get(self, key):
     b = self.get_filled_bucket(key)
     if b == None: return None
     return self.table[b][1]
+
 
   def resize(self, next_key, next_val):
     pairs = list(filter(lambda x: isinstance(x, tuple), self.table))
@@ -93,9 +100,11 @@ class HashTable:
     for p in pairs:
       self.insert(p[0], p[1])
 
+
   # return list of keys
   def keys(self):
     return self.keys_list
+
 
   # return list of values
   def values(self):

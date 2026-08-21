@@ -3,7 +3,6 @@ from datetime import datetime, time, timedelta
 
 from hashtable import HashTable
 from datetime_utils import parse_time_str, add_date
-from locations import Location, locations, get_location_by_address, get_location_by_name, distance_table
 from package import Package
 from truck import Truck
 
@@ -57,6 +56,7 @@ batch3 = [lookup_package(pid) for pid in [
   '26', '27', '28', '32', '33', '35', '39'
 ]]
 
+
 # initialize Truck objects (1-3)
 trucks = [Truck(str(i)) for i in range(1, 4)]
 
@@ -65,6 +65,7 @@ driver2 = 'Bob'
 
 trucks[0].set_driver(driver1)
 trucks[1].set_driver(driver2)
+
 
 # load the first two trucks
 for p in batch1: trucks[0].load(p)
@@ -94,18 +95,20 @@ trucks[2].set_driver(repeat_driver)
 for p in batch3: trucks[2].load(p)
 trucks[2].route(return_to_wgu=False)
 
+
 # calculate final statistics
 delivered_pkg_ct = 0
 for p in packages.values():
   if p.status == 'delivered':
     delivered_pkg_ct += 1
-ending_time = max([tr.current_time for tr in trucks])
+ending_time = max([p.current_time for p in packages.values()])
 total_mileage = sum([tr.get_mileage_at_time(tr.current_time) for tr in trucks])
 
 # print final statistics
 print(f'Packages delivered: {delivered_pkg_ct}')
 print(f'Ending time: {datetime.strftime(ending_time, '%I:%M:%S %p')}')
 print(f'Total mileage: {round(total_mileage, 2)}')
+
 
 # CLI
 
@@ -132,6 +135,7 @@ help: displays this help message
 quit: exits the program
 """)
 
+
 # parses a comma-separated ID-list parameter in the CLI
 def parse_ids(s):
   if s == 'all': return s
@@ -140,8 +144,10 @@ def parse_ids(s):
     return 'Error: missing ID after comma. Make sure no commas are followed by spaces'
   return ids
 
+
 print('\n')
 display_help_msg()
+
 
 while True:
   # input a command and organize its tokens
@@ -190,6 +196,7 @@ while True:
         print(f'Invalid time string "{params[2]} {params[3]}". Please enter a valid time without spaces.')
         continue
 
+
     if specifier == 'truck':
       # build an array of trucks selected by the user
       selected = []
@@ -233,6 +240,7 @@ while True:
           total_mileage = sum(tr.get_mileage_at_time(tr.current_time) for tr in selected)
           print(f'Total mileage: {round(total_mileage, 2)} miles')
 
+
     else: # specifier is 'package'
       # build list of packages chosen by the user
       selected = []
@@ -256,12 +264,15 @@ while True:
       if t:
         for p in selected:
           if len(selected) > 1:
-            print(f'Package {p.package_id}: {p.get_status_at_time_str(t)}')
+            print(f'Package {p.package_id}:', end=' ')
+          print(f'{p.get_status_at_time_str(t)}')
       # no timestamp specified: show end-of-day status
       else:
         for p in selected:
           if len(selected) > 1:
-            print(f'Package {p.package_id}: {p.get_current_status_str()}')
+            print(f'Package {p.package_id}:', end=' ')
+          print(f'{p.get_current_status_str()}')
+
 
   elif command == 'help':
     display_help_msg()

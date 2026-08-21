@@ -17,6 +17,7 @@ class Truck(TimedEntity):
     # all trucks start at 8 AM
     super().__init__(time(8, 0, 0))
 
+
   def __str__(self):
     return f'Truck {self.truck_id}'
 
@@ -46,6 +47,7 @@ class Truck(TimedEntity):
     package.wait_until(self.current_time)
     package.add_event('loaded', self)
 
+
   def unload(self, package: Package):
     # display a message if the package is late
     if isinstance(package.deadline, datetime) and self.current_time > package.deadline:
@@ -60,6 +62,7 @@ class Truck(TimedEntity):
     package.add_event('delivered', self)
     package.status = 'delivered'
 
+
   def drive_to(self, new_loc: Location):
     miles = distance_table[self.location.location_id][new_loc.location_id]
     self.location = new_loc
@@ -73,6 +76,7 @@ class Truck(TimedEntity):
 
   def drive_to_name(self, name: str):
       self.drive_to(get_location_by_name(name))
+
 
   # Route and deliver the truck's current load of packages
   def route(self, return_to_wgu = True):
@@ -117,6 +121,7 @@ class Truck(TimedEntity):
     if return_to_wgu:
       self.drive_to_name('Western Governors University')
 
+
   # returns the position in the history array where
   #   timestamps first surpass the specified time
   # Used to assist finding the truck's status at a specific time
@@ -124,6 +129,7 @@ class Truck(TimedEntity):
     last_i = 0
     while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
     return last_i
+
 
   def get_location_at_time(self, t: datetime):
     last_i = self.get_first_history_i_after_time(t)
@@ -163,6 +169,7 @@ class Truck(TimedEntity):
       'segment_miles': segment_miles,
     }
 
+
   def get_mileage_at_time(self, t: datetime):
     last_i = self.get_first_history_i_after_time(t)
     if last_i == 0: return 0
@@ -185,6 +192,7 @@ class Truck(TimedEntity):
       mileage = prev_mileage + segment_miles * ((t - prev_arrival) / (next_arrival - prev_arrival))
 
     return mileage
+
 
   def print_status_at_time(self, t: datetime):
     last_i = self.get_first_history_i_after_time(t)
@@ -241,6 +249,7 @@ class Truck(TimedEntity):
     pkg_str = 'none'
     if ps: pkg_str = f'[{', '.join([p.package_id for p in ps])}]'
     print(f'Packages: {pkg_str}')
+
 
   def print_current_status(self):
     self.print_status_at_time(self.current_time)

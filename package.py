@@ -66,15 +66,21 @@ class Package(TimedEntity):
     self.add_event('arrived')
     self.status = 'at hub'
 
+
   # utility that combines a status with a timestamp in a user-readable format
   def get_status_str(self, status: str, timestamp: datetime):
-    return {
+    status_str = {
       'delayed': 'delayed until ',
       'arrived': 'at hub since ',
       'loaded': 'loaded at ',
       'en route': 'en route since ',
       'delivered': 'delivered at ',
     }[status] + time.strftime(timestamp.time(), '%H:%M:%S %p')
+    if status in ('loaded', 'en route', 'delivered'):
+      truck = list(filter(lambda h: h['type'] == status, self.history))[0]['data']
+      status_str += f' ({truck})'
+    return status_str
+
 
   # searches the package's history to determine its status at the specified time
   def get_status_at_time_str(self, t: datetime):
