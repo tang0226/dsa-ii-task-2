@@ -218,7 +218,6 @@ while True:
       if t:
         for truck in selected:
           truck.print_status_at_time(t)
-          print()
 
         # print total mileage of selection after displaying truck status
         if len(selected) > 1:
@@ -229,7 +228,6 @@ while True:
       else:
         for truck in selected:
           truck.print_current_status()
-          print()
 
         # print total mileage of selection after displaying truck status
         if len(selected) > 1:
