@@ -17,3 +17,11 @@ class TimedEntity:
     if t < self.current_time:
       raise ValueError('Entity cannot wait until previous time')
     self.current_time = t
+
+  # returns the position in the history array where
+  #   timestamps first surpass the specified time
+  # Used to assist finding an entity's status at a specific time
+  def get_first_history_i_after_time(self, t: datetime):
+    last_i = 0
+    while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
+    return last_i

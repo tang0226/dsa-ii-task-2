@@ -122,15 +122,6 @@ class Truck(TimedEntity):
       self.drive_to_name('Western Governors University')
 
 
-  # returns the position in the history array where
-  #   timestamps first surpass the specified time
-  # Used to assist finding the truck's status at a specific time
-  def get_first_history_i_after_time(self, t: datetime):
-    last_i = 0
-    while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
-    return last_i
-
-
   def get_location_at_time(self, t: datetime):
     last_i = self.get_first_history_i_after_time(t)
 
