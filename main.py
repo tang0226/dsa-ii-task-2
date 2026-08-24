@@ -217,8 +217,6 @@ while True:
       # timestamp specified
       if t:
         for truck in selected:
-          if len(selected) > 1:
-            print(f'{truck}:')
           truck.print_status_at_time(t)
           print()
 
@@ -230,8 +228,6 @@ while True:
       # no timestamp specified: show end-of-day status
       else:
         for truck in selected:
-          if len(selected) > 1:
-            print(f'{truck}:')
           truck.print_current_status()
           print()
 
@@ -263,15 +259,11 @@ while True:
       # timestamp specified
       if t:
         for p in selected:
-          if len(selected) > 1:
-            print(f'Package {p.package_id}:', end=' ')
-          print(f'{p.get_status_at_time_str(t)}')
+          p.print_data_at_time(t)
       # no timestamp specified: show end-of-day status
       else:
         for p in selected:
-          if len(selected) > 1:
-            print(f'Package {p.package_id}:', end=' ')
-          print(f'{p.get_current_status_str()}')
+          p.print_curr_data()
 
 
   elif command == 'help':

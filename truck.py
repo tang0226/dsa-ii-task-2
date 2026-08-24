@@ -186,13 +186,15 @@ class Truck(TimedEntity):
 
 
   def print_status_at_time(self, t: datetime):
+    print(f'{self}:')
+
     last_i = self.get_first_history_i_after_time(t)
 
     if last_i == 0:
-      print(f'Driver: none')
-      print(f'Location: {str(get_location_by_name('Western Governors University'))}')
-      print(f'Mileage: 0 miles')
-      print(f'Packages: none')
+      print(f'  Driver: none')
+      print(f'  Location: {str(get_location_by_name('Western Governors University'))}')
+      print(f'  Mileage: 0 miles')
+      print(f'  Packages: none')
       return
 
     # driver
@@ -228,18 +230,18 @@ class Truck(TimedEntity):
       elif h['type'] == 'unload':
         ps.remove(h['data'])
 
-    print(f'Driver: {driver or 'none'}')
+    print(f'  Driver: {driver or 'none'}')
 
     loc_text = str(prev_location)
     if next_location and t != prev_arrival:
-      loc_text = 'en route\n          ' + loc_text + '\n          v\n          ' + str(next_location)
-    print(f'Location: {loc_text}')
+      loc_text = 'en route\n            ' + loc_text + '\n            v\n            ' + str(next_location)
+    print(f'  Location: {loc_text}')
 
-    print(f'Mileage: {round(mileage, 2)}')
+    print(f'  Mileage: {round(mileage, 2)}')
 
     pkg_str = 'none'
     if ps: pkg_str = f'[{', '.join([p.package_id for p in ps])}]'
-    print(f'Packages: {pkg_str}')
+    print(f'  Packages: {pkg_str}')
 
 
   def print_current_status(self):

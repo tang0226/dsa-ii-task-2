@@ -76,17 +76,13 @@ class Package(TimedEntity):
       'en route': 'en route since ',
       'delivered': 'delivered at ',
     }[status] + time.strftime(timestamp.time(), '%H:%M:%S %p')
-    if status in ('loaded', 'en route', 'delivered'):
-      truck = list(filter(lambda h: h['type'] == status, self.history))[0]['data']
-      status_str += f' ({truck})'
     return status_str
 
 
   # searches the package's history to determine its status at the specified time
-  def get_status_at_time_str(self, t: datetime):
+  def get_status_str_at_time(self, t: datetime):
     # locate the point in the history at which the specified time falls
-    last_i = 0
-    while last_i < len(self.history) and self.history[last_i]['time'] <= t: last_i += 1
+    last_i = self.get_first_history_i_after_time(t)
 
     # Create an array that works backwards from last_i
     # for easy back-tracing through the package history
@@ -107,4 +103,28 @@ class Package(TimedEntity):
     return status_str
 
   def get_current_status_str(self):
-    return self.get_status_at_time_str(self.current_time)
+    return self.get_status_str_at_time(self.current_time)
+
+  def get_truck_at_time(self, t: datetime):
+    loading_time = None
+    truck = None
+    for h in self.history:
+      if h['type'] == 'loaded':
+        loading_time = h['time']
+        truck = h['data']
+        break
+    if loading_time and t >= loading_time:
+      return truck
+    return None
+
+  def print_data_at_time(self, t: datetime):
+    last_i = self.get_first_history_i_after_time(t)
+
+    print(f'Package {self.package_id}:')
+    print(f'  Address: {self.address}')
+    print(f'  Deadline: {time.strftime(self.deadline.time(), '%H:%M:%S %p') if self.deadline != 'EOD' else 'EOD'}')
+    print(f'  Status: {self.get_status_str_at_time(t)}')
+    print(f'  Truck number: {getattr(self.get_truck_at_time(t), 'truck_id', 'none')}')
+
+  def print_curr_data(self):
+    self.print_data_at_time(self.current_time)
