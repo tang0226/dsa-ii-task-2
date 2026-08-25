@@ -122,9 +122,9 @@ class Package(TimedEntity):
 
     print(f'Package {self.package_id}:')
     print(f'  Address: {self.address}')
-    print(f'  Deadline: {time.strftime(self.deadline.time(), '%H:%M:%S %p') if self.deadline != 'EOD' else 'EOD'}')
+    print(f'  Deadline: {time.strftime(self.deadline.time(), "%H:%M:%S %p") if self.deadline != "EOD" else "EOD"}')
     print(f'  Status: {self.get_status_str_at_time(t)}')
-    print(f'  Truck number: {getattr(self.get_truck_at_time(t), 'truck_id', 'none')}')
+    print(f'  Truck number: {getattr(self.get_truck_at_time(t), "truck_id", "none")}')
 
   def print_curr_data(self):
     self.print_data_at_time(self.current_time)

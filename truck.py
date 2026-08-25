@@ -192,7 +192,7 @@ class Truck(TimedEntity):
 
     if last_i == 0:
       print(f'  Driver: none')
-      print(f'  Location: {str(get_location_by_name('Western Governors University'))}')
+      print(f'  Location: {str(get_location_by_name("Western Governors University"))}')
       print(f'  Mileage: 0 miles')
       print(f'  Packages: none')
       return
@@ -230,7 +230,7 @@ class Truck(TimedEntity):
       elif h['type'] == 'unload':
         ps.remove(h['data'])
 
-    print(f'  Driver: {driver or 'none'}')
+    print(f'  Driver: {driver or "none"}')
 
     loc_text = str(prev_location)
     if next_location and t != prev_arrival:
@@ -240,7 +240,7 @@ class Truck(TimedEntity):
     print(f'  Mileage: {round(mileage, 2)}')
 
     pkg_str = 'none'
-    if ps: pkg_str = f'[{', '.join([p.package_id for p in ps])}]'
+    if ps: pkg_str = f'[{", ".join([p.package_id for p in ps])}]'
     print(f'  Packages: {pkg_str}')
 
 

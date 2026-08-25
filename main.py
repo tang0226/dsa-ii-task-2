@@ -106,7 +106,7 @@ total_mileage = sum([tr.get_mileage_at_time(tr.current_time) for tr in trucks])
 
 # print final statistics
 print(f'Packages delivered: {delivered_pkg_ct}')
-print(f'Ending time: {datetime.strftime(ending_time, '%I:%M:%S %p')}')
+print(f'Ending time: {datetime.strftime(ending_time, "%I:%M:%S %p")}')
 print(f'Total mileage: {round(total_mileage, 2)}')
 
 
