@@ -1,5 +1,5 @@
 import csv
-from datetime import datetime, time, timedelta
+from datetime import datetime
 
 from hashtable import HashTable
 from datetime_utils import parse_time_str, add_date
@@ -181,7 +181,7 @@ while True:
       # test multiple different formats on the user's input
       for fmt in ['%H:%M', '%H:%M:%S', '%I:%M%P', '%I:%M:%S%P']:
         try:
-          t = add_date(time.strptime(params[2], fmt))
+          t = add_date(datetime.strptime(params[2], fmt).time())
           break
         except ValueError:
           pass
