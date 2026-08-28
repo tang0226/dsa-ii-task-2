@@ -22,22 +22,26 @@ def lookup_package(pid: str):
 
 
 # special packages
-lookup_package('6').set_arrival('9:05 AM')
-lookup_package('9').set_address('410 S State St')
-lookup_package('9').set_city('Salt Lake City')
-lookup_package('9').set_zip_code('84111')
-lookup_package('9').set_arrival('10:20 AM')
-lookup_package('25').set_arrival('9:05 AM')
-lookup_package('28').set_arrival('9:05 AM')
-lookup_package('32').set_arrival('9:05 AM')
+lookup_package('6').set_ready_time('9:05 AM')
+lookup_package('25').set_ready_time('9:05 AM')
+lookup_package('28').set_ready_time('9:05 AM')
+lookup_package('32').set_ready_time('9:05 AM')
+
+# Update package 9's address at 10:20am
+p9 = lookup_package('9')
+p9.set_ready_time('10:20 AM')
+p9.wait_until(p9.ready_time)
+p9.set_address('410 S State St')
+p9.set_city('Salt Lake City')
+p9.set_zip_code('84111')
 
 
 # truck 1 will prioritize deadlined packages that aren't delayed
 batch1 = [lookup_package(pid) for pid in [
   # deadlined packages
-  '1', '13', '15', '29', '30', '31', '34', '37', '40',
+  '1', '13', '14', '15', '16', '20', '29',
   # other packages
-  '2', '4', '5', '7', '8', '10', '11'
+  '2', '4', '5', '7', '8', '10', '11', '12', '19',  # 19 must be with 13, 14, 15, 16, and 20
 ]]
 
 # truck 2 will leave as soon as the delayed packages arrive
@@ -45,10 +49,10 @@ batch2 = [lookup_package(pid) for pid in [
   # delayed, deadlined packages
   '6', '25',
   # deadlined packages
-  '14', '16', '20',  # <- must be delivered together
+  '30', '31', '34', '37', '40',
   # other packages
   '3', '18', '36', '38',  # <- must be on truck 2
-  '12', '17', '19', '21', '22', '23', '24'
+  '17', '21', '22', '23', '24'
 ]]
 
 batch3 = [lookup_package(pid) for pid in [
@@ -66,10 +70,10 @@ driver2 = 'Bob'
 trucks[0].set_driver(driver1)
 trucks[1].set_driver(driver2)
 
-
-# load the first two trucks
+# load truck 1
 for p in batch1: trucks[0].load(p)
 
+# delay and load truck 2
 trucks[1].wait_until(add_date(parse_time_str('9:05 AM')))
 for p in batch2: trucks[1].load(p)
 
@@ -179,7 +183,7 @@ while True:
     t = None
     if len(params) >= 3:
       # test multiple different formats on the user's input
-      for fmt in ['%H:%M', '%H:%M:%S', '%I:%M%P', '%I:%M:%S%P']:
+      for fmt in ['%H:%M', '%H:%M:%S', '%I:%M%p', '%I:%M:%S%p']:
         try:
           t = add_date(datetime.strptime(params[2], fmt).time())
           break

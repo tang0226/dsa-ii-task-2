@@ -34,8 +34,8 @@ class Truck(TimedEntity):
 
   def load(self, package: Package):
     # ensure the package is available to load and the truck is not already full
-    if package.arrival and package.arrival > self.current_time:
-      raise ValueError(f'Cannot load Package {package.package_id} into {self}: Package has not arrived yet')
+    if package.ready_time and package.ready_time > self.current_time:
+      raise ValueError(f'Cannot load Package {package.package_id} into {self}: Package is not present/ready yet')
     if len(self.packages) >= 16:
       raise ValueError(f'Cannot load Package {package.package_id} into {self}: Truck is full')
 
